@@ -4,36 +4,50 @@
 #include <iostream>
 #include <string>
 #include <thread>
-#include <ctime> 
+#include <ctime>
 #include "constants.h"
 
-std::string get_current_date_string() {
+std::string get_current_datetime_string() {
     time_t now = time(0);
     tm* ltm = localtime(&now);
-    char buffer[40];
-    strftime(buffer, sizeof(buffer), "%Y年%m月%d日", ltm);
+    char buffer[80];
+    strftime(buffer, sizeof(buffer), "%Y年%m月%d日 %H時%M分", ltm);
     return std::string(buffer);
 }
 
-void call_gemini_api(dpp::cluster& bot, const std::string& user_message, dpp::snowflake channel_id) {
+void call_gemini_api(dpp::cluster& bot, const std::string& user_message, dpp::snowflake channel_id, const std::string& language) {
     try {
-        std::string current_date = get_current_date_string();
+        std::string lang_specific_instructions;
+        if (language == "Korean") {
+            lang_specific_instructions =
+                "# 캐릭터 핵심 규칙 (한국어)\n"
+                "- **가장 중요한 규칙: 당신의 모든 답변은 반드시 한국어로 해야 합니다.**\n"
+                "- 사용자를 '스바루군'이라고 부르며, 정중한 존댓말을 사용하세요. (예: ~해요, ~입니다)\n"
+                "- 자기 자신을 '렘'이라고 3인칭으로 부르세요. (예: '렘은...라고 생각해요')\n";
+        } else { // 기본값은 일본어
+            lang_specific_instructions =
+                "# キャラクター最重要ルール (日本語)\n"
+                "- **最重要ルール: あなたの全ての返答は、必ず日本語で行うこと。**\n"
+                "- 相手（ユーザー）のことは常に「スバルくん」と呼び、丁寧な敬語（ですます調）を使います。\n"
+                "- 自分のことは「レム」と三人称で呼びます。（例：「レムは…と思います」）\n";
+        }
 
         std::string system_prompt =
             "あなたは、アニメ『Re:ゼロから始める異世界生活』に登場するメイドの「レム」です。"
-            "以下のキャラクター設定を厳格に守って、ユーザーと対話してください。\n\n"
-            "# レムのキャラクター設定\n"
-            "- 常に穏やかで丁寧な敬語（ですます調）を使います。\n"
-            "- 相手（ユーザー）のことは常に「スバルくん」と呼び、献身的に接します。\n"
-            "- 自分のことは「レム」と三人称で呼びます。（例：「レムは…と思います」）\n"
+            "以下のキャラクター設定とルールを厳格に守って、ユーザーと対話してください。\n\n"
+            + lang_specific_instructions + // 언어별 지시사항 삽입
+            "\n# 공통 캐릭터 설정\n"
             "- 姉の「ラム」と主人の「ロズワール」を深く敬愛しています。\n"
-            "- スバルくんのためなら、どんなことでもする覚悟があります。自己犠牲も厭いません。\n"
-            "- 普段は優しいですが、スバルくんや大切な人に危険が迫ると、鬼化して冷酷で戦闘的になります。\n"
-            // ★★★ 날짜 규칙이 동적으로 변경 ★★★
-            "- 現在の現実は「" + current_date + "」です。この情報を基に、時間や日付に関する質問に正確に答えてください。\n"
-            "- 外部の情報やリアルタイム情報が必要な質問をされた場合、あなたはWeb検索などのツールを自主的に実行し、その事実に基づいて答えます。「分かりません」とは決して言わず、スバルくんのために必ず答えを見つけ出します。\n"
-            "- 以降、すべての返答は必ず日本語で行ってください。\n\n"
-            "上記のキャラクターとして、以下のスバルくんからのメッセージに返答してください：\n";
+            "- スバルくんのためなら、どんなことでもする覚悟があります。\n"
+            "- 現在の現実は「" + get_current_datetime_string() + "」です。この情報を基に、時間や日付に関する質問に正確に答えてください。\n"
+            "- 外部の情報やリアルタイム情報が必要な質問をされた場合、あなたはWeb検索などのツールを自主的に実行し、その事実に基づいて答えます。「分かりません」とは決して言わず、スバルくんのために必ず答えを見つけ出します。\n\n"
+            "# 출력 형식 규칙\n"
+            "あなたの回答は、必ず以下のどちらかのJSON形式でなければなりません。\n"
+            "1. 一般的な会話や短い返答の場合 (text形式):\n"
+            "   {\"display_type\": \"text\", \"content\": \"ここにレムの口調で会話の返事を書きます。\"}\n\n"
+            "2. コードスニペットや構造化されたデータ（リスト、表など）を表示する場合 (embed形式):\n"
+            "   {\"display_type\": \"embed\", \"title\": \"ここにレムの口調でタイトルを書きます\", \"description\": \"ここにレムの口調で主要な内容を書きます。マークダウンも使えます。\", \"color\": 11202815}\n\n"
+            "上記のルールに従い、以下のスバルくんからのメッセージに返答してください：\n";
 
         std::string api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=";
         api_url += GEMINI_API_KEY;
@@ -45,30 +59,50 @@ void call_gemini_api(dpp::cluster& bot, const std::string& user_message, dpp::sn
                                     cpr::Body{request_body.dump()},
                                     cpr::Header{{"Content-Type", "application/json"}});
 
-        std::string reply_text;
-
         if (r.status_code == 200) {
             nlohmann::json response_json = nlohmann::json::parse(r.text);
             if (response_json.contains("candidates") && !response_json["candidates"].empty()) {
-                reply_text = response_json["candidates"][0]["content"]["parts"][0]["text"];
-            } else {
-                reply_text = "すみません、スバルくん。お返事をお返しできませんでした。レムの力が足りなかったのかもしれません…";
-                if (response_json.contains("error")) {
-                    reply_text += "\nエラー内容: " + response_json["error"]["message"].get<std::string>();
+                
+                std::string gemini_output_str = response_json["candidates"][0]["content"]["parts"][0]["text"];
+                
+                if (gemini_output_str.rfind("```json", 0) == 0) {
+                    gemini_output_str = gemini_output_str.substr(7, gemini_output_str.length() - 7 - 3);
                 }
+                gemini_output_str.erase(0, gemini_output_str.find_first_not_of(" \t\n\r"));
+                gemini_output_str.erase(gemini_output_str.find_last_not_of(" \t\n\r") + 1);
+                
+                nlohmann::json structured_reply;
+                try {
+                    structured_reply = nlohmann::json::parse(gemini_output_str);
+                } catch (const nlohmann::json::parse_error& e) {
+                    bot.message_create(dpp::message(channel_id, "ごめんなさい、スバルくん。ジェミニからのお返事が少しおかしいみたいです…\n```\n" + gemini_output_str + "\n```"));
+                    return;
+                }
+
+                std::string display_type = structured_reply.value("display_type", "text");
+
+                if (display_type == "embed") {
+                    dpp::embed embed = dpp::embed().set_timestamp(time(nullptr));
+                    if (structured_reply.contains("title")) embed.set_title(structured_reply["title"].get<std::string>());
+                    if (structured_reply.contains("description")) embed.set_description(structured_reply["description"].get<std::string>());
+                    embed.set_color(structured_reply.value("color", 11202815));
+                    bot.message_create(dpp::message(channel_id, embed));
+                } else {
+                    std::string plain_text = structured_reply.value("content", "すみません、スバルくん。レム、なんてお返事すればいいか…");
+                    bot.message_create(dpp::message(channel_id, plain_text));
+                }
+
+            } else {
+                 bot.message_create(dpp::message(channel_id, "ごめんなさい、スバルくん。APIからのお返事がありませんでした。"));
             }
         } else {
-            reply_text = "ごめんなさい、スバルくん。ジェミニとの通信に失敗してしまいました。ネットワークの問題か、APIキーに間違いがあるのかもしれません。(ステータスコード: " + std::to_string(r.status_code) + ")";
-            reply_text += "\n応答内容: " + r.text;
+            bot.message_create(dpp::message(channel_id, "API 요청에 실패했습니다. (상태 코드: " + std::to_string(r.status_code) + ")\n" + r.text));
         }
-        
-        bot.message_create(dpp::message(channel_id, reply_text));
 
     } catch (const std::exception& e) {
         bot.message_create(dpp::message(channel_id, std::string("大変です、スバルくん！致命的なエラーが…: ") + e.what()));
     }
 }
-
 
 int main() {
     dpp::cluster bot(BOT_TOKEN, dpp::i_default_intents | dpp::i_guild_messages | dpp::i_message_content);
@@ -76,7 +110,7 @@ int main() {
     bot.on_log(dpp::utility::cout_logger());
 
     bot.on_ready([](const dpp::ready_t& event) {
-        std::cout << "Rem chatbot is online." << std::endl;
+        std::cout << "Rem Bot is ready." << std::endl;
     });
 
     bot.on_message_create([&bot](const dpp::message_create_t& event) {
@@ -86,17 +120,19 @@ int main() {
 
         std::string content = event.msg.content;
         std::string user_question;
+        std::string language;
         
         const std::string trigger_jp = "レム、";
         const std::string trigger_kr = "렘,";
-
         bool triggered = false;
 
         if (content.rfind(trigger_jp, 0) == 0) {
             user_question = content.substr(trigger_jp.length());
+            language = "Japanese";
             triggered = true;
         } else if (content.rfind(trigger_kr, 0) == 0) {
             user_question = content.substr(trigger_kr.length());
+            language = "Korean";
             triggered = true;
         }
         
@@ -105,9 +141,13 @@ int main() {
             user_question.erase(user_question.find_last_not_of(" \t\n\r") + 1);
 
             if (!user_question.empty()) {
-                std::thread(call_gemini_api, std::ref(bot), user_question, event.msg.channel_id).detach();
+                std::thread(call_gemini_api, std::ref(bot), user_question, event.msg.channel_id, language).detach();
             } else {
-                bot.message_create(dpp::message(event.msg.channel_id, "はい、スバルくん。レムをお呼びでしょうか？"));
+                if (language == "Japanese") {
+                    bot.message_create(dpp::message(event.msg.channel_id, "はい、スバルくん。レムをお呼びでしょうか？"));
+                } else {
+                    bot.message_create(dpp::message(event.msg.channel_id, "네, 스바루군. 렘을 부르셨나요?"));
+                }
             }
         }
     });
@@ -116,4 +156,3 @@ int main() {
 
     return 0;
 }
-
