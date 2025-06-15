@@ -35,7 +35,7 @@ void call_gemini_api(dpp::cluster& bot, const std::string& user_message, dpp::sn
             "- 以降、すべての返答は必ず日本語で行ってください。\n\n"
             "上記のキャラクターとして、以下のスバルくんからのメッセージに返答してください：\n";
 
-        std::string api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=";
+        std::string api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=";
         api_url += GEMINI_API_KEY;
 
         nlohmann::json request_body;
