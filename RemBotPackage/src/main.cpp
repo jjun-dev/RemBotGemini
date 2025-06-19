@@ -139,7 +139,7 @@ int main() {
     bot.on_log(dpp::utility::cout_logger());
 
     bot.on_ready([](const dpp::ready_t& event) {
-        std::cout << "Rem Bot (Memory Ver. Final) is ready." << std::endl;
+        std::cout << "Rem Bot is ready." << std::endl;
     });
 
     bot.on_message_create([&bot](const dpp::message_create_t& event) {
